@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict
 
 
 class PydanticBase(BaseModel):
@@ -8,11 +8,14 @@ class PydanticBase(BaseModel):
     description: str
     valid_name: Optional[str] = None
 
-    @validator("valid_name", always=True)
-    def ab(cls, v, values) -> str:
-        if not values["name"]:
+    model_config = ConfigDict()
+
+    def model_post_init(self, __context) -> None:
+        super().model_post_init(__context)
+        name = self.name
+        if not name:
             raise ValueError()
-        elif values["name"] in {
+        if name in {
             "class",
             "def",
             "from",
@@ -22,10 +25,12 @@ class PydanticBase(BaseModel):
             "True",
             "False",
         }:
-            return f"{values['name']}_"
-        if values["name"][0].isdigit():
-            return f"_{values['name']}"
-        return values["name"]
+            valid_name = f"{name}_"
+        elif name[0].isdigit():
+            valid_name = f"_{name}"
+        else:
+            valid_name = name
+        object.__setattr__(self, "valid_name", valid_name)
 
 
 class PydanticField(PydanticBase):
@@ -48,11 +53,11 @@ class PydanticClass(PydanticBase):
     forward_refs: List[Import] = []
     filename: str = ""
 
-    @validator("filename", always=True)
-    def filename_val(cls, v, values) -> str:
-        if not values["valid_name"]:
+    def model_post_init(self, __context) -> None:
+        super().model_post_init(__context)
+        if not self.valid_name:
             raise ValueError()
-        filename = values["valid_name"]
+        filename = self.valid_name
         if filename in {
             "class",
             "def",
@@ -61,8 +66,8 @@ class PydanticClass(PydanticBase):
             "return",
             "yield",
         }:
-            return f'{filename}_'
-        return values['valid_name']
+            filename = f"{filename}_"
+        object.__setattr__(self, "filename", filename)
 
 
-PydanticClass.update_forward_refs()
+PydanticClass.model_rebuild()
